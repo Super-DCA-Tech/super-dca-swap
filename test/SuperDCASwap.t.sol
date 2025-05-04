@@ -7,6 +7,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {PathKey} from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
 
 contract SuperDCASwapTest is Test {
     address constant UNIVERSAL_ROUTER_ADDRESS = 0x66a9893cC07D91D95644AEDD05D03f95e1dBA8Af;
@@ -32,6 +33,14 @@ contract SuperDCASwapTest is Test {
     PoolKey ETH_USDC_KEY = PoolKey({
         currency0: Currency.wrap(ETH),
         currency1: Currency.wrap(USDC_ADDRESS),
+        fee: 3000,
+        tickSpacing: 60,
+        hooks: IHooks(address(0))
+    });
+
+    PoolKey WBTC_ETH_KEY = PoolKey({
+        currency0: Currency.wrap(ETH),
+        currency1: Currency.wrap(WBTC_ADDRESS),
         fee: 3000,
         tickSpacing: 60,
         hooks: IHooks(address(0))
@@ -140,6 +149,74 @@ contract SuperDCASwapTest is Test {
             0,
             "No ETH received"
         );
+    }
+
+    function testSwapUSDCForETHMultihop() public {
+        uint128 amountIn = 5000e6; // 5000 USDC
+        uint128 minAmountOut = 0; // Expecting some ETH out
+
+        // Define the swap path: USDC -> WBTC -> ETH
+        PathKey[] memory path = new PathKey[](2);
+
+        // Step 1: USDC -> WBTC
+        // Input: USDC (currency1), Output: WBTC (currency0)
+        // Pool: WBTC/USDC (currency0 = WBTC, currency1 = USDC)
+        path[0] = PathKey({
+            intermediateCurrency: Currency.wrap(WBTC_ADDRESS), // Swapping USDC *for* WBTC
+            fee: WBTC_USDC_KEY.fee,
+            tickSpacing: WBTC_USDC_KEY.tickSpacing,
+            hooks: WBTC_USDC_KEY.hooks,
+            hookData: bytes("")
+        });
+
+        // Step 2: WBTC -> ETH
+        // Input: WBTC (currency1), Output: ETH (currency0)
+        // Pool: WBTC/ETH (currency0 = ETH, currency1 = WBTC)
+        path[1] = PathKey({
+            intermediateCurrency: Currency.wrap(ETH), // Swapping WBTC *for* ETH
+            fee: WBTC_ETH_KEY.fee,
+            tickSpacing: WBTC_ETH_KEY.tickSpacing,
+            hooks: WBTC_ETH_KEY.hooks,
+            hookData: bytes("")
+        });
+
+        // Define input currency
+        Currency currencyIn = Currency.wrap(USDC_ADDRESS);
+
+        // Fund the contract with USDC
+        deal(USDC_ADDRESS, address(swapContract), amountIn);
+
+        // Record initial ETH balance
+        uint256 initialETHBalance = address(swapContract).balance;
+        uint256 initialWBTCBalance = WBTC.balanceOf(address(swapContract));
+
+        // Approve USDC spending via Permit2
+        vm.prank(address(swapContract));
+        swapContract.approveTokenWithPermit2(
+            USDC_ADDRESS,
+            amountIn,
+            uint48(block.timestamp + 1)
+        );
+
+        // Execute the multi-hop swap
+        vm.prank(address(swapContract));
+        uint256 amountOut = swapContract.swapExactInput(
+            currencyIn,
+            path,
+            amountIn,
+            minAmountOut
+        );
+
+        // Verify swap results
+        assertGt(amountOut, minAmountOut, "Swap failed: insufficient ETH output amount");
+        assertEq(USDC.balanceOf(address(swapContract)), 0, "USDC not fully spent");
+        assertEq(WBTC.balanceOf(address(swapContract)), initialWBTCBalance, "WBTC balance changed unexpectedly"); // WBTC is intermediate
+        assertGt(
+            address(swapContract).balance - initialETHBalance,
+            0,
+            "No ETH received"
+        );
+        assertEq(address(swapContract).balance - initialETHBalance, amountOut, "AmountOut mismatch with ETH balance change");
     }
 
     receive() external payable {}
