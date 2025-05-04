@@ -10,7 +10,7 @@ The contract supports `swapExactInputSingle` using a `PoolKey` and `swapExactInp
 | Network | Address |
 |---------|---------|
 | Base Sepolia | [0x0000000000000000000000000000000000000000](https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000) |
-| Unichain Sepolia | [0x0000000000000000000000000000000000000000](https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000) |
+| Unichain Sepolia | [0x4779F177d595ad1Dee69034a58A668fc6116aF96.](https://unichain-sepolia.blockscout.com/address/0x4779F177d595ad1Dee69034a58A668fc6116aF96) |
 
 
 ### Build
