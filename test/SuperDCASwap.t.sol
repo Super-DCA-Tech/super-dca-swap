@@ -58,7 +58,7 @@ contract SuperDCASwapTest is Test {
         vm.label(WBTC_ADDRESS, "WBTC");
     }
 
-    function testSwapWBTCForUSDC() public {
+    function test_Swap_WBTC_For_USDC() public {
         uint128 amountIn = 1e7; // 0.1 WBTC
         uint128 minAmountOut = 0;
 
@@ -84,7 +84,7 @@ contract SuperDCASwapTest is Test {
         assertGt(USDC.balanceOf(address(swapContract)), 0, "No USDC received");
     }
 
-    function testSwapETHForUSDC() public {
+    function test_Swap_ETH_For_USDC() public {
         uint128 amountIn = 1 ether; // 1 ETH
         uint128 minAmountOut = 0;
 
@@ -106,7 +106,7 @@ contract SuperDCASwapTest is Test {
         assertGt(USDC.balanceOf(address(swapContract)), 0, "No USDC received");
     }
 
-    function testSwapUSDCForETH() public {
+    function test_Swap_USDC_For_ETH() public {
         uint128 amountIn = 1000e6; // 1000 USDC
         uint128 minAmountOut = 0;
 
@@ -135,7 +135,7 @@ contract SuperDCASwapTest is Test {
         assertGt(address(swapContract).balance - initialETHBalance, 0, "No ETH received");
     }
 
-    function testSwapUSDCForETHMultihop() public {
+    function test_Swap_USDC_For_ETH_Multihop() public {
         uint128 amountIn = 5000e6; // 5000 USDC
         uint128 minAmountOut = 0; // Expecting some ETH out
 

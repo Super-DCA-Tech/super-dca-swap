@@ -61,7 +61,7 @@ contract SuperDCASwapUnichainTest is Test {
         vm.label(DCA_ADDRESS, "DCA");
     }
 
-    function testSwapUSDCForETHMultihop() public {
+    function test_Swap_USDC_For_ETH_Multihop() public {
         uint128 amountIn = 1e6; // 1 USDC
         uint128 minAmountOut = 0; // Expecting some ETH out
 
@@ -138,7 +138,7 @@ contract SuperDCASwapUnichainTest is Test {
         );
     }
 
-    function testSwapETHForUSDCMultihop() public {
+    function test_Swap_ETH_For_USDC_Multihop() public {
         uint128 amountIn = 0.00001 ether; // 1 ETH
         uint128 minAmountOut = 0; // Expecting some USDC out
 

@@ -20,19 +20,19 @@ import {console} from "forge-std/console.sol";
 contract SuperDCASwap {
     using StateLibrary for IPoolManager;
 
-    IUniversalRouter public immutable router;
-    IPoolManager public immutable poolManager;
-    IPermit2 public immutable permit2;
+    IUniversalRouter public immutable ROUTER;
+    IPoolManager public immutable POOL_MANAGER;
+    IPermit2 public immutable PERMIT2;
 
     constructor(address _router, address _poolManager, address _permit2) {
-        router = IUniversalRouter(_router);
-        poolManager = IPoolManager(_poolManager);
-        permit2 = IPermit2(_permit2);
+        ROUTER = IUniversalRouter(_router);
+        POOL_MANAGER = IPoolManager(_poolManager);
+        PERMIT2 = IPermit2(_permit2);
     }
 
     function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) external {
-        IERC20(token).approve(address(permit2), type(uint256).max);
-        permit2.approve(token, address(router), amount, expiration);
+        IERC20(token).approve(address(PERMIT2), type(uint256).max);
+        PERMIT2.approve(token, address(ROUTER), amount, expiration);
     }
 
     function swapExactInputSingle(PoolKey calldata key, bool zeroForOne, uint128 amountIn, uint128 minAmountOut)
@@ -77,10 +77,10 @@ contract SuperDCASwap {
         uint256 deadline = block.timestamp + 20;
         if (requireETHValue) {
             require(msg.value == amountIn, "Incorrect ETH amount");
-            router.execute{value: amountIn}(commands, inputs, deadline);
+            ROUTER.execute{value: amountIn}(commands, inputs, deadline);
         } else {
             require(msg.value == 0, "ETH not needed for this swap");
-            router.execute(commands, inputs, deadline);
+            ROUTER.execute(commands, inputs, deadline);
         }
 
         // Verify and return the output amount
@@ -159,12 +159,12 @@ contract SuperDCASwap {
         if (requireETHValue) {
             require(msg.value == amountIn, "Incorrect ETH amount provided");
             // Pass ETH value if swapping native ETH
-            router.execute{value: amountIn}(commands, inputs, deadline);
+            ROUTER.execute{value: amountIn}(commands, inputs, deadline);
         } else {
             require(msg.value == 0, "ETH not required for this swap");
             // Execute without ETH value if swapping ERC20 tokens
             // Assumes necessary approvals (e.g., via Permit2) are already in place
-            router.execute(commands, inputs, deadline);
+            ROUTER.execute(commands, inputs, deadline);
         }
 
         // Verify the amount of output tokens received
