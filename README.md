@@ -1,21 +1,23 @@
-# Forge Test Highlighting a Uniswap V4 swap
+# Super DCA Swap
 
-## Usage
+This is a simple contract that allows you to swap between two tokens using the Uniswap V4 protocol.
 
-Install foundry:
-https://book.getfoundry.sh/
+The contract supports `swapExactInputSingle` using a `PoolKey` and `swapExactInput` using a `PathKey` array.
 
-Copy `.env.example` to `.env` and add your rpc url
+## Deployed Contracts
+
+| Network | Address |
+|---------|---------|
+| Base Sepolia | [0x0000000000000000000000000000000000000000](https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000) |
+| Unichain Sepolia | [0x0000000000000000000000000000000000000000](https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000) |
 
 
 ### Build
-
 ```shell
 $ forge build
 ```
 
 ### Test
-
 ```shell
-$ forge test -vvvv
+$ forge test
 ```
