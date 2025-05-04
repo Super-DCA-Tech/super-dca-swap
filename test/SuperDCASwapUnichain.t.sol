@@ -52,11 +52,7 @@ contract SuperDCASwapUnichainTest is Test {
     function setUp() public {
         vm.selectFork(vm.createFork(vm.envString("UNICHAIN_RPC_URL")));
 
-        swapContract = new SuperDCASwap(
-            UNIVERSAL_ROUTER_ADDRESS,
-            POOL_MANAGER_ADDRESS,
-            PERMIT2_ADDRESS
-        );
+        swapContract = new SuperDCASwap(UNIVERSAL_ROUTER_ADDRESS, POOL_MANAGER_ADDRESS, PERMIT2_ADDRESS);
 
         vm.label(UNIVERSAL_ROUTER_ADDRESS, "UNIVERSAL_ROUTER");
         vm.label(POOL_MANAGER_ADDRESS, "POOL_MANAGER");
@@ -64,7 +60,6 @@ contract SuperDCASwapUnichainTest is Test {
         vm.label(USDC_ADDRESS, "USDC");
         vm.label(DCA_ADDRESS, "DCA");
     }
-
 
     function testSwapUSDCForETHMultihop() public {
         uint128 amountIn = 1e6; // 1 USDC
@@ -107,20 +102,11 @@ contract SuperDCASwapUnichainTest is Test {
 
         // Approve USDC spending via Permit2
         vm.prank(address(swapContract));
-        swapContract.approveTokenWithPermit2(
-            USDC_ADDRESS,
-            amountIn,
-            uint48(block.timestamp + 1)
-        );
+        swapContract.approveTokenWithPermit2(USDC_ADDRESS, amountIn, uint48(block.timestamp + 1));
 
         // Execute the multi-hop swap
         vm.prank(address(swapContract));
-        uint256 amountOut = swapContract.swapExactInput(
-            currencyIn,
-            path,
-            amountIn,
-            minAmountOut
-        );
+        uint256 amountOut = swapContract.swapExactInput(currencyIn, path, amountIn, minAmountOut);
 
         console.log("--- USDC -> ETH Multi-hop Swap ---");
         console.log("USDC In (raw, 6 decimals):", amountIn);
@@ -146,12 +132,10 @@ contract SuperDCASwapUnichainTest is Test {
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient ETH output amount");
         assertEq(USDC.balanceOf(address(swapContract)), 0, "USDC not fully spent");
         assertEq(DCA.balanceOf(address(swapContract)), initialDCABalance, "DCA balance changed unexpectedly"); // DCA is intermediate
-        assertGt(
-            address(swapContract).balance - initialETHBalance,
-            0,
-            "No ETH received"
+        assertGt(address(swapContract).balance - initialETHBalance, 0, "No ETH received");
+        assertEq(
+            address(swapContract).balance - initialETHBalance, amountOut, "AmountOut mismatch with ETH balance change"
         );
-        assertEq(address(swapContract).balance - initialETHBalance, amountOut, "AmountOut mismatch with ETH balance change");
     }
 
     function testSwapETHForUSDCMultihop() public {
@@ -196,12 +180,7 @@ contract SuperDCASwapUnichainTest is Test {
 
         // Execute the multi-hop swap
         vm.prank(address(swapContract));
-        uint256 amountOut = swapContract.swapExactInput{value: amountIn}(
-            currencyIn,
-            path,
-            amountIn,
-            minAmountOut
-        );
+        uint256 amountOut = swapContract.swapExactInput{value: amountIn}(currencyIn, path, amountIn, minAmountOut);
 
         console.log("--- ETH -> USDC Multi-hop Swap ---");
         console.log("ETH In (wei):", amountIn);
@@ -230,12 +209,12 @@ contract SuperDCASwapUnichainTest is Test {
         // Let's check if the balance decreased exactly by amountIn.
         assertEq(initialETHBalance - address(swapContract).balance, amountIn, "ETH not fully spent");
         assertEq(DCA.balanceOf(address(swapContract)), initialDCABalance, "DCA balance changed unexpectedly"); // DCA is intermediate
-        assertGt(
+        assertGt(USDC.balanceOf(address(swapContract)) - initialUSDCBalance, 0, "No USDC received");
+        assertEq(
             USDC.balanceOf(address(swapContract)) - initialUSDCBalance,
-            0,
-            "No USDC received"
+            amountOut,
+            "AmountOut mismatch with USDC balance change"
         );
-        assertEq(USDC.balanceOf(address(swapContract)) - initialUSDCBalance, amountOut, "AmountOut mismatch with USDC balance change");
     }
 
     receive() external payable {}

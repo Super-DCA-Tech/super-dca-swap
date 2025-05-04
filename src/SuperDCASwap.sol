@@ -3,19 +3,19 @@ pragma solidity 0.8.26;
 
 /// @notice Issues with importing the universal router solved with these imports
 /// see: https://github.com/0ximmeas/univ4-swap-walkthrough
-import { IUniversalRouter } from "src/external/IUniversalRouter.sol";
-import { Commands } from "src/external/Commands.sol";
+import {IUniversalRouter} from "src/external/IUniversalRouter.sol";
+import {Commands} from "src/external/Commands.sol";
 
-import { IPoolManager } from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import { StateLibrary } from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
-import { PoolKey } from "@uniswap/v4-core/src/types/PoolKey.sol";
-import { Currency } from "@uniswap/v4-core/src/types/Currency.sol";
-import { IV4Router } from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
-import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
-import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
-import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { PathKey } from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
-import { console } from "forge-std/console.sol";
+import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {StateLibrary} from "@uniswap/v4-core/src/libraries/StateLibrary.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IV4Router} from "@uniswap/v4-periphery/src/interfaces/IV4Router.sol";
+import {Actions} from "@uniswap/v4-periphery/src/libraries/Actions.sol";
+import {IPermit2} from "@uniswap/permit2/src/interfaces/IPermit2.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {PathKey} from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
+import {console} from "forge-std/console.sol";
 
 contract SuperDCASwap {
     using StateLibrary for IPoolManager;
@@ -30,31 +30,23 @@ contract SuperDCASwap {
         permit2 = IPermit2(_permit2);
     }
 
-    function approveTokenWithPermit2(
-        address token,
-        uint160 amount,
-        uint48 expiration
-    ) external {
+    function approveTokenWithPermit2(address token, uint160 amount, uint48 expiration) external {
         IERC20(token).approve(address(permit2), type(uint256).max);
         permit2.approve(token, address(router), amount, expiration);
     }
 
-    function swapExactInputSingle(
-        PoolKey calldata key,
-        bool zeroForOne,
-        uint128 amountIn,
-        uint128 minAmountOut
-    ) external payable returns (uint256 amountOut) {
+    function swapExactInputSingle(PoolKey calldata key, bool zeroForOne, uint128 amountIn, uint128 minAmountOut)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
         // Encode the Universal Router command
         bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
         bytes[] memory inputs = new bytes[](1);
 
         // Encode V4Router actions
-        bytes memory actions = abi.encodePacked(
-            uint8(Actions.SWAP_EXACT_IN_SINGLE),
-            uint8(Actions.SETTLE_ALL),
-            uint8(Actions.TAKE_ALL)
-        );
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_IN_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
 
         // Determine the actual input and output tokens based on zeroForOne
         Currency inputCurrency = zeroForOne ? key.currency0 : key.currency1;
@@ -109,12 +101,11 @@ contract SuperDCASwap {
     /// @param amountIn The exact amount of `currencyIn` to be swapped.
     /// @param minAmountOut The minimum amount of the final output token that must be received for the swap not to revert.
     /// @return amountOut The amount of the final output token received.
-    function swapExactInput(
-        Currency currencyIn,
-        PathKey[] calldata path,
-        uint128 amountIn,
-        uint128 minAmountOut
-    ) external payable returns (uint256 amountOut) {
+    function swapExactInput(Currency currencyIn, PathKey[] calldata path, uint128 amountIn, uint128 minAmountOut)
+        external
+        payable
+        returns (uint256 amountOut)
+    {
         require(path.length > 0, "Path cannot be empty");
 
         // Encode the Universal Router command for a V4 swap
@@ -123,9 +114,9 @@ contract SuperDCASwap {
 
         // Encode the sequence of V4Router actions required for a multi-hop exact input swap
         bytes memory actions = abi.encodePacked(
-            uint8(Actions.SWAP_EXACT_IN),      // Perform the multi-hop swap defined by the path
-            uint8(Actions.SETTLE_ALL),         // Settle the debt of the input token created by the swap action
-            uint8(Actions.TAKE_ALL)            // Take the credit of the final output token created by the swap action
+            uint8(Actions.SWAP_EXACT_IN), // Perform the multi-hop swap defined by the path
+            uint8(Actions.SETTLE_ALL), // Settle the debt of the input token created by the swap action
+            uint8(Actions.TAKE_ALL) // Take the credit of the final output token created by the swap action
         );
 
         // Determine the final output currency from the last element in the path
