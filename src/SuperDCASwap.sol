@@ -15,6 +15,7 @@ import { Actions } from "@uniswap/v4-periphery/src/libraries/Actions.sol";
 import { IPermit2 } from "@uniswap/permit2/src/interfaces/IPermit2.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import { PathKey } from "@uniswap/v4-periphery/src/libraries/PathKey.sol";
+import { console } from "forge-std/console.sol";
 
 contract SuperDCASwap {
     using StateLibrary for IPoolManager;
