@@ -86,8 +86,13 @@ contract SuperDCASwap {
         // Verify and return the output amount
         if (outputTokenAddress == address(0)) {
             amountOut = address(this).balance;
+            // Send ETH to the original caller
+            (bool success, ) = msg.sender.call{value: amountOut}("");
+            require(success, "ETH transfer failed");
         } else {
             amountOut = IERC20(outputTokenAddress).balanceOf(address(this));
+            // Transfer ERC20 tokens to the original caller
+            require(IERC20(outputTokenAddress).transfer(msg.sender, amountOut), "Token transfer failed");
         }
         require(amountOut >= minAmountOut, "Insufficient output amount");
         return amountOut;
@@ -171,9 +176,12 @@ contract SuperDCASwap {
         if (outputTokenAddress == address(0)) {
             // If the output is native ETH, calculate the *change* in balance
             amountOut = address(this).balance - balanceBefore;
+            (bool success, ) = msg.sender.call{value: amountOut}("");
+            require(success, "ETH transfer failed");
         } else {
             // If the output is an ERC20 token, check the contract's token balance
             amountOut = IERC20(outputTokenAddress).balanceOf(address(this));
+            require(IERC20(outputTokenAddress).transfer(msg.sender, amountOut), "Token transfer failed");
         }
 
         // Ensure the received amount meets the minimum requirement

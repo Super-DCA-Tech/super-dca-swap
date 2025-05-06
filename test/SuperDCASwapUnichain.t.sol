@@ -93,19 +93,18 @@ contract SuperDCASwapUnichainTest is Test {
         // Define input currency
         Currency currencyIn = Currency.wrap(USDC_ADDRESS);
 
-        // Fund the contract with USDC
-        deal(USDC_ADDRESS, address(swapContract), amountIn);
+        // Fund this contract with USDC and transfer to swap contract
+        deal(USDC_ADDRESS, address(this), amountIn);
+        USDC.transfer(address(swapContract), amountIn);
 
-        // Record initial ETH balance
-        uint256 initialETHBalance = address(swapContract).balance;
-        uint256 initialDCABalance = DCA.balanceOf(address(swapContract));
+        // Record initial ETH balance of caller and contract DCA balance
+        uint256 initialETHBalance = address(this).balance;
+        uint256 initialDCABalanceContract = DCA.balanceOf(address(swapContract));
 
         // Approve USDC spending via Permit2
-        vm.prank(address(swapContract));
         swapContract.approveTokenWithPermit2(USDC_ADDRESS, amountIn, uint48(block.timestamp + 1));
 
         // Execute the multi-hop swap
-        vm.prank(address(swapContract));
         uint256 amountOut = swapContract.swapExactInput(currencyIn, path, amountIn, minAmountOut);
 
         console.log("--- USDC -> ETH Multi-hop Swap ---");
@@ -131,11 +130,8 @@ contract SuperDCASwapUnichainTest is Test {
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient ETH output amount");
         assertEq(USDC.balanceOf(address(swapContract)), 0, "USDC not fully spent");
-        assertEq(DCA.balanceOf(address(swapContract)), initialDCABalance, "DCA balance changed unexpectedly"); // DCA is intermediate
-        assertGt(address(swapContract).balance - initialETHBalance, 0, "No ETH received");
-        assertEq(
-            address(swapContract).balance - initialETHBalance, amountOut, "AmountOut mismatch with ETH balance change"
-        );
+        assertEq(DCA.balanceOf(address(swapContract)), initialDCABalanceContract, "DCA balance changed unexpectedly"); // DCA is intermediate
+        assertEq(address(this).balance - initialETHBalance, amountOut, "ETH not transferred to caller correctly");
     }
 
     function test_Swap_ETH_For_USDC_Multihop() public {
@@ -170,16 +166,15 @@ contract SuperDCASwapUnichainTest is Test {
         // Define input currency
         Currency currencyIn = Currency.wrap(ETH);
 
-        // Fund the contract with ETH
-        vm.deal(address(swapContract), amountIn);
+        // Fund this contract with ETH
+        vm.deal(address(this), amountIn);
 
-        // Record initial balances
-        uint256 initialETHBalance = address(swapContract).balance; // Should be amountIn
-        uint256 initialUSDCBalance = USDC.balanceOf(address(swapContract));
+        // Record initial balances of caller
+        uint256 initialETHBalance = address(this).balance; // Should be amountIn
+        uint256 initialUSDCBalance = USDC.balanceOf(address(this));
         uint256 initialDCABalance = DCA.balanceOf(address(swapContract));
 
-        // Execute the multi-hop swap
-        vm.prank(address(swapContract));
+        // Execute the multi-hop swap, sending ETH value
         uint256 amountOut = swapContract.swapExactInput{value: amountIn}(currencyIn, path, amountIn, minAmountOut);
 
         console.log("--- ETH -> USDC Multi-hop Swap ---");
@@ -205,16 +200,9 @@ contract SuperDCASwapUnichainTest is Test {
 
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient USDC output amount");
-        // The contract's ETH balance should be 0 after spending `amountIn` unless it had a prior balance.
-        // Let's check if the balance decreased exactly by amountIn.
-        assertEq(initialETHBalance - address(swapContract).balance, amountIn, "ETH not fully spent");
+        assertEq(initialETHBalance - address(this).balance, amountIn, "ETH not fully spent");
         assertEq(DCA.balanceOf(address(swapContract)), initialDCABalance, "DCA balance changed unexpectedly"); // DCA is intermediate
-        assertGt(USDC.balanceOf(address(swapContract)) - initialUSDCBalance, 0, "No USDC received");
-        assertEq(
-            USDC.balanceOf(address(swapContract)) - initialUSDCBalance,
-            amountOut,
-            "AmountOut mismatch with USDC balance change"
-        );
+        assertEq(USDC.balanceOf(address(this)) - initialUSDCBalance, amountOut, "USDC not transferred correctly");
     }
 
     receive() external payable {}

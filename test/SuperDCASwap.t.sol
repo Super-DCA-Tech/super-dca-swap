@@ -62,15 +62,15 @@ contract SuperDCASwapTest is Test {
         uint128 amountIn = 1e7; // 0.1 WBTC
         uint128 minAmountOut = 0;
 
-        // Fund the contract with WBTC
-        deal(WBTC_ADDRESS, address(swapContract), amountIn);
+        // Fund the user (test contract) with WBTC and transfer to swap contract
+        deal(WBTC_ADDRESS, address(this), amountIn);
+        IERC20(WBTC_ADDRESS).transfer(address(swapContract), amountIn);
 
-        // Approve tokens
+        // Approve tokens via Permit2 as swap contract
         vm.prank(address(swapContract));
         swapContract.approveTokenWithPermit2(WBTC_ADDRESS, amountIn, uint48(block.timestamp + 1));
 
-        // Execute swap (WBTC -> USDC: zeroForOne = true)
-        vm.prank(address(swapContract));
+        // Execute swap (WBTC -> USDC) expecting USDC to this contract
         uint256 amountOut = swapContract.swapExactInputSingle(
             WBTC_USDC_KEY,
             true, // zeroForOne
@@ -81,18 +81,18 @@ contract SuperDCASwapTest is Test {
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient output amount");
         assertEq(WBTC.balanceOf(address(swapContract)), 0, "WBTC not fully spent");
-        assertGt(USDC.balanceOf(address(swapContract)), 0, "No USDC received");
+        assertEq(USDC.balanceOf(address(swapContract)), 0, "Contract should not retain USDC");
+        assertGt(USDC.balanceOf(address(this)), 0, "Caller did not receive USDC");
     }
 
     function test_Swap_ETH_For_USDC() public {
         uint128 amountIn = 1 ether; // 1 ETH
         uint128 minAmountOut = 0;
 
-        // Fund the contract with ETH
-        vm.deal(address(swapContract), amountIn);
+        // Fund this contract with ETH
+        vm.deal(address(this), amountIn);
 
         // Execute swap (ETH -> USDC: zeroForOne = true)
-        vm.prank(address(swapContract));
         uint256 amountOut = swapContract.swapExactInputSingle{value: amountIn}(
             ETH_USDC_KEY,
             true, // zeroForOne
@@ -103,25 +103,26 @@ contract SuperDCASwapTest is Test {
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient output amount");
         assertEq(address(swapContract).balance, 0, "ETH not fully spent");
-        assertGt(USDC.balanceOf(address(swapContract)), 0, "No USDC received");
+        assertEq(USDC.balanceOf(address(swapContract)), 0, "Contract should not retain USDC");
+        assertGt(USDC.balanceOf(address(this)), 0, "Caller did not receive USDC");
     }
 
     function test_Swap_USDC_For_ETH() public {
         uint128 amountIn = 1000e6; // 1000 USDC
         uint128 minAmountOut = 0;
 
-        // Fund the contract with USDC
-        deal(USDC_ADDRESS, address(swapContract), amountIn);
+        // Fund this contract with USDC and transfer to swap contract
+        deal(USDC_ADDRESS, address(this), amountIn);
+        USDC.transfer(address(swapContract), amountIn);
 
-        // Record initial ETH balance
-        uint256 initialETHBalance = address(swapContract).balance;
+        // Record initial ETH balance of caller
+        uint256 initialETHBalance = address(this).balance;
 
         // Approve tokens
         vm.prank(address(swapContract));
         swapContract.approveTokenWithPermit2(USDC_ADDRESS, amountIn, uint48(block.timestamp + 1));
 
         // Execute swap (USDC -> ETH: zeroForOne = false)
-        vm.prank(address(swapContract));
         uint256 amountOut = swapContract.swapExactInputSingle(
             ETH_USDC_KEY,
             false, // zeroForOne
@@ -132,7 +133,7 @@ contract SuperDCASwapTest is Test {
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient output amount");
         assertEq(USDC.balanceOf(address(swapContract)), 0, "USDC not fully spent");
-        assertGt(address(swapContract).balance - initialETHBalance, 0, "No ETH received");
+        assertEq(address(this).balance - initialETHBalance, amountOut, "ETH not transferred to caller correctly");
     }
 
     function test_Swap_USDC_For_ETH_Multihop() public {
@@ -167,29 +168,26 @@ contract SuperDCASwapTest is Test {
         // Define input currency
         Currency currencyIn = Currency.wrap(USDC_ADDRESS);
 
-        // Fund the contract with USDC
-        deal(USDC_ADDRESS, address(swapContract), amountIn);
+        // Fund this contract with USDC and transfer to swap contract
+        deal(USDC_ADDRESS, address(this), amountIn);
+        USDC.transfer(address(swapContract), amountIn);
 
-        // Record initial ETH balance
-        uint256 initialETHBalance = address(swapContract).balance;
-        uint256 initialWBTCBalance = WBTC.balanceOf(address(swapContract));
+        // Record initial ETH balance of caller and contract WBTC balance
+        uint256 initialETHBalance = address(this).balance;
+        uint256 initialWBTCBalanceContract = WBTC.balanceOf(address(swapContract));
 
         // Approve USDC spending via Permit2
         vm.prank(address(swapContract));
         swapContract.approveTokenWithPermit2(USDC_ADDRESS, amountIn, uint48(block.timestamp + 1));
 
         // Execute the multi-hop swap
-        vm.prank(address(swapContract));
         uint256 amountOut = swapContract.swapExactInput(currencyIn, path, amountIn, minAmountOut);
 
         // Verify swap results
         assertGt(amountOut, minAmountOut, "Swap failed: insufficient ETH output amount");
         assertEq(USDC.balanceOf(address(swapContract)), 0, "USDC not fully spent");
-        assertEq(WBTC.balanceOf(address(swapContract)), initialWBTCBalance, "WBTC balance changed unexpectedly"); // WBTC is intermediate
-        assertGt(address(swapContract).balance - initialETHBalance, 0, "No ETH received");
-        assertEq(
-            address(swapContract).balance - initialETHBalance, amountOut, "AmountOut mismatch with ETH balance change"
-        );
+        assertEq(WBTC.balanceOf(address(swapContract)), initialWBTCBalanceContract, "WBTC balance changed unexpectedly"); // WBTC is intermediate
+        assertEq(address(this).balance - initialETHBalance, amountOut, "ETH not transferred to caller correctly");
     }
 
     receive() external payable {}
