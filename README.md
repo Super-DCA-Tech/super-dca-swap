@@ -5,12 +5,26 @@ This is a simple contract that allows you to swap between two tokens using the U
 
 The contract supports `swapExactInputSingle` using a `PoolKey` and `swapExactInput` using a `PathKey` array.
 
-## Deployed Contracts
+## Usage
+This contract is designed to be used as a mixin contract for the Super DCA Pool contracts and other contracts that need to swap tokens through Uniswap V4.
 
-| Network | Address |
-|---------|---------|
-| Base Sepolia | [0x0000000000000000000000000000000000000000](https://sepolia.basescan.org/address/0x0000000000000000000000000000000000000000) |
-| Unichain Sepolia | [0x4779F177d595ad1Dee69034a58A668fc6116aF96.](https://unichain-sepolia.blockscout.com/address/0x4779F177d595ad1Dee69034a58A668fc6116aF96) |
+It implements simpler methods for swapping tokens through Uniswap V4 by encoding the Universal Router command and actions into a single call. Those methods are:
+
+* `swapExactInputSingle`
+* `swapExactInput`
+
+These may look familiar to users of the Uniswap V3 periphery. They work the same way only using structs from Uniswap V4. 
+
+### Integration with Super DCA Pool
+
+The Super DCA Pool contract is designed to be used as a mixin contract for the Super DCA Pool contracts.
+
+```solidity 
+contract SuperDCAPool is SuperDCASwap {
+    constructor(address _poolManager, address _universalRouter, address _permit2) SuperDCASwap(_poolManager, _universalRouter, _permit2) {}
+}
+```
+
 
 
 ### Build
