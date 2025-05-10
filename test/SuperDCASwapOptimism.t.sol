@@ -68,7 +68,7 @@ contract SuperDCASwapOptimismTest is Test {
         vm.label(UNI_ADDRESS, "UNI");
     }
 
-    function test_Swap_USDC_For_ETH_Multihop() public {
+    function test_ExactInput_USDC_For_ETH_Through_DCA() public {
         uint128 amountIn = 1e6; // 1 USDC
         uint128 minAmountOut = 0; // Expecting some ETH out
 
@@ -145,7 +145,7 @@ contract SuperDCASwapOptimismTest is Test {
         );
     }
 
-    function test_Swap_ETH_For_USDC_Multihop() public {
+    function test_ExactInput_ETH_For_USDC_Through_DCA() public {
         uint128 amountIn = 0.00001 ether; // 1 ETH
         uint128 minAmountOut = 0; // Expecting some USDC out
 
@@ -222,6 +222,89 @@ contract SuperDCASwapOptimismTest is Test {
             amountOut,
             "AmountOut mismatch with USDC balance change"
         );
+    }
+
+    function test_ExactOutputSingle_ETH_For_DCA() public {
+        uint128 exactAmountOut = 1e18; // DCA
+        uint128 maxAmountIn = 1 ether; // ETH
+        
+        // Fund the contract with ETH (more than needed to test refund)
+        vm.deal(address(swapContract), maxAmountIn);
+        
+        // Record initial balances
+        uint256 initialETHBalance = address(swapContract).balance;
+        uint256 initialDCABalance = DCA.balanceOf(address(swapContract));
+        
+        // Execute swap (ETH -> DCA: zeroForOne = true)
+        vm.prank(address(swapContract));
+        uint256 amountSpent = swapContract.swapExactOutputSingle{value: maxAmountIn}(
+            DCA_ETH_KEY,
+            true, // zeroForOne
+            exactAmountOut,
+            maxAmountIn
+        );
+        
+        // Verify swap results
+        uint256 dcaReceived = DCA.balanceOf(address(swapContract)) - initialDCABalance;
+        
+        console.log("--- ETH -> DCA Exact Output Swap ---");
+        console.log("DCA Requested (tokens):", exactAmountOut / 1e18);
+        console.log("DCA Received (tokens):", dcaReceived / 1e18);
+        console.log("ETH Max Input (wei):", maxAmountIn);
+        console.log("ETH Spent (wei):", amountSpent);
+        console.log("ETH Spent (decimal):", amountSpent / 1e18);
+        
+        // Exact output amount should match what was requested
+        assertEq(dcaReceived, exactAmountOut, "Did not receive exact DCA amount requested");
+        
+        // Amount spent should be less than or equal to max amount
+        assertLe(amountSpent, maxAmountIn, "Spent more than maximum");
+        
+        // Check that the returned amount matches the actual amount spent
+        assertEq(initialETHBalance - address(swapContract).balance, amountSpent, "Reported amount spent doesn't match ETH balance change");
+    }
+    
+    function test_ExactOutputSingle_DCA_For_USDC() public {
+        uint128 exactAmountOut = 1e6; // DCA
+        uint128 maxAmountIn = 500e18; // USDC
+        
+        // Fund the contract with DCA
+        deal(DCA_ADDRESS, address(swapContract), maxAmountIn);
+        
+        // Record initial balances
+        uint256 initialDCABalance = DCA.balanceOf(address(swapContract));
+        uint256 initialUSDCBalance = USDC.balanceOf(address(swapContract));
+        
+        // Approve tokens
+        vm.prank(address(swapContract));
+        swapContract.approveTokenWithPermit2(DCA_ADDRESS, maxAmountIn, uint48(block.timestamp + 1));
+        
+        // Execute swap (DCA -> USDC: zeroForOne = false since DCA is currency1)
+        vm.prank(address(swapContract));
+        uint256 amountSpent = swapContract.swapExactOutputSingle(
+            DCA_USDC_KEY,
+            false, // zeroForOne = false because DCA is currency1, USDC is currency0
+            exactAmountOut,
+            maxAmountIn
+        );
+        
+        // Verify swap results
+        uint256 usdcReceived = USDC.balanceOf(address(swapContract)) - initialUSDCBalance;
+        
+        console.log("--- DCA -> USDC Exact Output Swap ---");
+        console.log("USDC Requested (dollars):", exactAmountOut / 1e6);
+        console.log("USDC Received (dollars):", usdcReceived / 1e6);
+        console.log("DCA Max Input (tokens):", maxAmountIn / 1e18);
+        console.log("DCA Spent (tokens):", amountSpent / 1e18);
+        
+        // Exact output amount should match what was requested
+        assertEq(usdcReceived, exactAmountOut, "Did not receive exact USDC amount requested");
+        
+        // Amount spent should be less than or equal to max amount
+        assertLe(amountSpent, maxAmountIn, "Spent more than maximum");
+        
+        // Check that the returned amount matches the actual amount spent
+        assertEq(initialDCABalance - DCA.balanceOf(address(swapContract)), amountSpent, "Reported amount spent doesn't match DCA balance change");
     }
 
     receive() external payable {}

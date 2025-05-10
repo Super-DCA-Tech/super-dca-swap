@@ -192,5 +192,78 @@ contract SuperDCASwapTest is Test {
         );
     }
 
+    function test_ExactOutputSingle_ETH_For_USDC() public {
+        uint128 exactAmountOut = 500e6; // Want exactly 500 USDC
+        uint128 maxAmountIn = 2 ether; // Willing to spend up to 2 ETH
+        
+        // Fund the contract with ETH (more than needed to test refund)
+        vm.deal(address(swapContract), maxAmountIn);
+        
+        // Record initial balances
+        uint256 initialETHBalance = address(swapContract).balance;
+        uint256 initialUSDCBalance = USDC.balanceOf(address(swapContract));
+        
+        // Execute swap (ETH -> USDC: zeroForOne = true)
+        vm.prank(address(swapContract));
+        uint256 amountSpent = swapContract.swapExactOutputSingle{value: maxAmountIn}(
+            ETH_USDC_KEY,
+            true, // zeroForOne
+            exactAmountOut,
+            maxAmountIn
+        );
+        
+        // Verify swap results
+        uint256 usdcReceived = USDC.balanceOf(address(swapContract)) - initialUSDCBalance;
+        
+        // Exact output amount should match what was requested
+        assertEq(usdcReceived, exactAmountOut, "Did not receive exact USDC amount requested");
+        
+        // Amount spent should be less than or equal to max amount
+        assertLe(amountSpent, maxAmountIn, "Spent more than maximum");
+        
+        // Check that the returned amount matches the actual amount spent
+        assertEq(initialETHBalance - address(swapContract).balance, amountSpent, "Reported amount spent doesn't match ETH balance change");
+        
+        // Verify any excess ETH was refunded
+        assertLe(maxAmountIn - amountSpent, 1 wei, "Excess ETH was not refunded");
+    }
+
+    function test_ExactOutputSingle_USDC_For_ETH() public {
+        uint128 exactAmountOut = 0.5 ether; // Want exactly 0.5 ETH
+        uint128 maxAmountIn = 2000e6; // Willing to spend up to 1000 USDC
+        
+        // Fund the contract with USDC
+        deal(USDC_ADDRESS, address(swapContract), maxAmountIn);
+        
+        // Record initial balances
+        uint256 initialETHBalance = address(swapContract).balance;
+        uint256 initialUSDCBalance = USDC.balanceOf(address(swapContract));
+        
+        // Approve tokens
+        vm.prank(address(swapContract));
+        swapContract.approveTokenWithPermit2(USDC_ADDRESS, maxAmountIn, uint48(block.timestamp + 1));
+        
+        // Execute swap (USDC -> ETH: zeroForOne = false)
+        vm.prank(address(swapContract));
+        uint256 amountSpent = swapContract.swapExactOutputSingle(
+            ETH_USDC_KEY,
+            false, // zeroForOne
+            exactAmountOut,
+            maxAmountIn
+        );
+        
+        // Verify swap results
+        uint256 ethReceived = address(swapContract).balance - initialETHBalance;
+        
+        // Exact output amount should match what was requested
+        assertEq(ethReceived, exactAmountOut, "Did not receive exact ETH amount requested");
+        
+        // Amount spent should be less than or equal to max amount
+        assertLe(amountSpent, maxAmountIn, "Spent more than maximum");
+        
+        // Check that the returned amount matches the actual amount spent
+        assertEq(initialUSDCBalance - USDC.balanceOf(address(swapContract)), amountSpent, "Reported amount spent doesn't match USDC balance change");
+    }
+
     receive() external payable {}
 }

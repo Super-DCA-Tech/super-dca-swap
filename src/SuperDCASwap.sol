@@ -93,14 +93,95 @@ contract SuperDCASwap {
         return amountOut;
     }
 
-    receive() external payable {}
+    function swapExactOutputSingle(PoolKey calldata key, bool zeroForOne, uint128 amountOut, uint128 maxAmountIn)
+        external
+        payable
+        returns (uint256 amountIn)
+    {
+        // Encode the Universal Router command
+        bytes memory commands = abi.encodePacked(uint8(Commands.V4_SWAP));
+        bytes[] memory inputs = new bytes[](1);
 
-    /// @notice Swaps an exact amount of input tokens for as many output tokens as possible through a series of pools defined by a path.
-    /// @param currencyIn The currency of the input token.
-    /// @param path An array of PathKey structs defining the sequence of pools and intermediate tokens for the swap.
-    /// @param amountIn The exact amount of `currencyIn` to be swapped.
-    /// @param minAmountOut The minimum amount of the final output token that must be received for the swap not to revert.
-    /// @return amountOut The amount of the final output token received.
+        // Encode V4Router actions - use SWAP_EXACT_OUT_SINGLE for exact output swap
+        bytes memory actions =
+            abi.encodePacked(uint8(Actions.SWAP_EXACT_OUT_SINGLE), uint8(Actions.SETTLE_ALL), uint8(Actions.TAKE_ALL));
+
+        // Determine the actual input and output tokens based on zeroForOne
+        Currency inputCurrency = zeroForOne ? key.currency0 : key.currency1;
+        Currency outputCurrency = zeroForOne ? key.currency1 : key.currency0;
+        address inputTokenAddress = Currency.unwrap(inputCurrency);
+        address outputTokenAddress = Currency.unwrap(outputCurrency);
+
+        bool requireETHValue = inputTokenAddress == address(0);
+
+        // Prepare parameters for each action
+        bytes[] memory params = new bytes[](3);
+        params[0] = abi.encode(
+            IV4Router.ExactOutputSingleParams({
+                poolKey: key,
+                zeroForOne: zeroForOne,
+                amountOut: amountOut,
+                amountInMaximum: maxAmountIn,
+                hookData: bytes("")
+            })
+        );
+        params[1] = abi.encode(inputCurrency, maxAmountIn);
+        params[2] = abi.encode(outputCurrency, amountOut);
+
+        // Combine actions and params into inputs
+        inputs[0] = abi.encode(actions, params);
+
+        // Record balance before execution for ETH input calculation
+        uint256 balanceBefore = 0;
+        if (requireETHValue) {
+            balanceBefore = address(this).balance - msg.value; // Exclude the msg.value we're about to send
+        } else if (inputTokenAddress != address(0)) {
+            balanceBefore = IERC20(inputTokenAddress).balanceOf(address(this));
+        }
+
+        // Execute the swap
+        uint256 deadline = block.timestamp + 20;
+        if (requireETHValue) {
+            require(msg.value >= maxAmountIn, "Insufficient ETH amount");
+            ROUTER.execute{value: maxAmountIn}(commands, inputs, deadline);
+            
+            // Refund excess ETH if any
+            uint256 refund = msg.value - maxAmountIn;
+            if (refund > 0) {
+                (bool success, ) = msg.sender.call{value: refund}("");
+                require(success, "ETH refund failed");
+            }
+        } else {
+            require(msg.value == 0, "ETH not needed for this swap");
+            ROUTER.execute(commands, inputs, deadline);
+        }
+
+        // Calculate the actual amount spent
+        if (requireETHValue) {
+            // For ETH, calculate how much was spent by checking the balance change
+            uint256 currentBalance = address(this).balance;
+            amountIn = balanceBefore + msg.value - currentBalance;
+        } else {
+            // For ERC20 tokens, check how much the token balance decreased
+            uint256 currentBalance = IERC20(inputTokenAddress).balanceOf(address(this));
+            amountIn = balanceBefore - currentBalance;
+        }
+
+        // Verify we didn't spend more than the maximum
+        require(amountIn <= maxAmountIn, "Spent more than maximum");
+        
+        // For exact output swaps, we verify the output token is as expected
+        if (outputTokenAddress == address(0)) {
+            // If output is ETH, it should be in the contract's balance
+            require(address(this).balance >= amountOut, "Insufficient ETH output");
+        } else {
+            // If output is ERC20, verify the balance
+            require(IERC20(outputTokenAddress).balanceOf(address(this)) >= amountOut, "Insufficient token output");
+        }
+        
+        return amountIn;
+    }
+
     function swapExactInput(Currency currencyIn, PathKey[] calldata path, uint128 amountIn, uint128 minAmountOut)
         external
         payable
@@ -182,4 +263,6 @@ contract SuperDCASwap {
         // Return the actual amount of output tokens received
         return amountOut;
     }
+
+    receive() external payable {}
 }
